@@ -1,3 +1,5 @@
+# main.py
+
 import sys
 import math
 import pygame
@@ -8,10 +10,9 @@ from PyQt5 import uic
 
 from models.field import Field
 from models.team import Team
-from defense_strategy import DefenseStrategy
 from recorder import Recorder, Replayer
 from config import SCALE, ROBOT_SIZE
-from controllers.controller_manager import ControllerManager  # Giữ nguyên
+from controllers.controller_manager import ControllerManager
 
 class TestWindow(QMainWindow):
     def __init__(self):
@@ -28,10 +29,12 @@ class TestWindow(QMainWindow):
         self.team1 = Team(1, Qt.blue, self.field.MARGIN, self.scene)
         self.team2 = Team(2, Qt.red, self.field.MARGIN, self.scene)
 
-        positions_blue = [(6, 1, 180), (6, -1, 180), (6, 2, 180), (6, -3, 180), (6, -7, 180)]
+        #positions_blue = [(6, 1, 180), (6, -1, 180), (6, 2, 180), (6, -3, 180), (6, -7, 180)]
+        positions_blue = [(6, 1, 180)]
         self.team1.create_robots(len(positions_blue), positions=positions_blue)
 
-        positions_red = [(-7, 0, 180), (-7, 2, 180), (-7, 4, 180), (-7, -2, 180), (-7, -4, 180)]
+        #positions_red = [(-7, 0, 180), (-7, 2, 180), (-7, 4, 180), (-7, -2, 180), (-7, -4, 180)]
+        positions_red = [(-7, 0, 180), (-7, 2, 180)]
         self.team2.create_robots(len(positions_red), positions=positions_red)
 
         self.recorder = Recorder(self.team1, self.team2)
@@ -42,12 +45,6 @@ class TestWindow(QMainWindow):
         self.pushButton_Replay.clicked.connect(self.load_replay_file)
         self.pushButton_Reset.clicked.connect(self.reset_game)
         self.pushButton_Start.clicked.connect(self.start_game)
-
-        # Logic mới: Control Manager cho mỗi team
-        self.team1_controllers = []
-        self.team1_auto_robots = []
-        self.team2_controllers = []
-        self.team2_auto_robots = []
 
         pygame.init()
         pygame.joystick.init()
@@ -106,7 +103,7 @@ class TestWindow(QMainWindow):
             self.is_running = True
             self.labelGameState.setText("Game Running...")
             self.pushButton_Start.setText("Pause")
-            self.setup_controls()  # Khởi tạo điều khiển khi bắt đầu
+            self.setup_controls()
         elif self.game_state == "running":
             self.game_state = "paused"
             self.is_running = False
@@ -120,14 +117,13 @@ class TestWindow(QMainWindow):
 
     def setup_controls(self):
         from controllers.controller_manager import ControllerManager
-        # Lấy mode và strategy từ UI
         mode1 = self.comboBox_ModeBlue.currentText()
         strat1 = self.comboBox_StrategyBlue.currentText()
         mode2 = self.comboBox_ModeRed.currentText()
         strat2 = self.comboBox_StrategyRed.currentText()
 
-        self.team1_controllers, self.team1_auto_robots, self.team1_strategy = ControllerManager.setup_control(self.team1, mode1, strat1)
-        self.team2_controllers, self.team2_auto_robots, self.team2_strategy = ControllerManager.setup_control(self.team2, mode2, strat2)
+        self.team1_controllers, self.team1_auto_robots, self.team1_strategy = ControllerManager(self.team1, mode1, strat1, side='defense', field=self.field)
+        self.team2_controllers, self.team2_auto_robots, self.team2_strategy = ControllerManager(self.team2, mode2, strat2, side='attack', field=self.field)
 
     def game_loop(self):
         if not self.is_running:
@@ -141,11 +137,10 @@ class TestWindow(QMainWindow):
         for robot, joystick in self.team2_controllers:
             self.poll_xbox_single(robot, joystick)
 
-        for robot in self.team1_auto_robots:
-            self.apply_strategy(robot, self.team1_strategy)
-
-        for robot in self.team2_auto_robots:
-            self.apply_strategy(robot, self.team2_strategy)
+        if self.team1_strategy:
+            self.team1_strategy.apply()
+        if self.team2_strategy:
+            self.team2_strategy.apply()
 
         self.check_game_state()
 
@@ -172,7 +167,6 @@ class TestWindow(QMainWindow):
         x_m = (new_x + ROBOT_SIZE / 2 - self.field.MARGIN) / self.SCALE - 11.0
         y_m = (new_y + ROBOT_SIZE / 2 - self.field.MARGIN) / self.SCALE - 7.0
 
-        # Thêm kiểm tra tránh va chạm
         safe = True
         all_robots = self.team1.robots + self.team2.robots
 
@@ -181,11 +175,8 @@ class TestWindow(QMainWindow):
                 continue
             ox = other.pose['x']
             oy = other.pose['y']
-
             dist_to_other = math.hypot(x_m - ox, y_m - oy)
-            min_safe_distance = (ROBOT_SIZE / self.SCALE) + 0.1
-
-            if dist_to_other < min_safe_distance:
+            if dist_to_other < ROBOT_SIZE + 0.05:
                 safe = False
                 break
 
@@ -199,59 +190,17 @@ class TestWindow(QMainWindow):
             robot.setRotation(theta)
             robot.pose['theta'] = theta
 
-    def apply_strategy(self, robot, strategy):
-        if strategy == 'Straight':
-            tx, ty = self.field.target_zone.cx, self.field.target_zone.cy
-            dx = tx - robot.pose['x']
-            dy = ty - robot.pose['y']
-            dist_to_target = math.hypot(dx, dy)
-
-            if dist_to_target > 0.1:
-
-                # Bước 1: hướng di chuyển cơ bản
-                vx = 0.05 * dx / dist_to_target
-                vy = 0.05 * dy / dist_to_target
-
-                # Bước 2: kiểm tra tránh va chạm với các robot khác
-                safe = True
-                all_robots = self.team1.robots + self.team2.robots
-
-                for other in all_robots:
-                    if other == robot:
-                        continue
-                    ox = other.pose['x']
-                    oy = other.pose['y']
-
-                    future_x = robot.pose['x'] + vx
-                    future_y = robot.pose['y'] + vy
-                    dist_to_other = math.hypot(future_x - ox, future_y - oy)
-
-                    min_safe_distance = (ROBOT_SIZE / self.SCALE) + 0.1  # chuyển về đơn vị mét
-
-                    if dist_to_other < min_safe_distance:
-                        safe = False
-                        break
-
-                if safe:
-                    # Nếu an toàn mới di chuyển
-                    robot.pose['x'] += vx
-                    robot.pose['y'] += vy
-
-                    px = self.field.MARGIN + (robot.pose['x'] + 11.0) * self.SCALE - ROBOT_SIZE / 2
-                    py = self.field.MARGIN + (robot.pose['y'] + 7.0) * self.SCALE - ROBOT_SIZE / 2
-                    robot.setPos(px, py)
-
     def is_inside_field(self, x, y):
         return -12.0 <= x <= 12.0 and -8.0 <= y <= 8.0
 
     def check_game_state(self):
         for red_robot in self.team2.robots:
             if self.field.target_zone.contains(red_robot.pose['x'], red_robot.pose['y']):
-                print("Red team wins!")
                 self.labelGameState.setText("Team Red Wins!")
                 self.is_running = False
                 self.pushButton_Start.setText("Start")
                 return
+
         blocked = 0
         block_distance = 0.5
 
@@ -263,14 +212,13 @@ class TestWindow(QMainWindow):
                 if dist <= block_distance:
                     blocked += 1
                     break
+
         if blocked == len(self.team2.robots):
-            print("Blue team wins!")
             self.labelGameState.setText("Team Blue Wins!")
             self.is_running = False
             self.pushButton_Start.setText("Start")
         else:
             self.labelGameState.setText("Game Running...")
-        
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

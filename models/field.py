@@ -138,3 +138,6 @@ class Field:
     
     def draw_target_zone(self, scene):
         draw_target_zone(scene, self.target_zone, self.SCALE, self.MARGIN)
+
+    def is_inside_field(self, x, y):
+        return -12.0 <= x <= 12.0 and -8.0 <= y <= 8.0

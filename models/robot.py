@@ -17,8 +17,11 @@ class Robot:
         self.vx = 0.0       # vận tốc theo trục x (m/s)
         self.vy = 0.0       # vận tốc theo trục y (m/s)
         self.vtheta = 0.0   # vận tốc góc (độ/s)
+        self.activate = True
 
     def update(self, dt: float):
+        if not self.active:
+            return
         """
         Cập nhật vị trí và góc quay của robot sau thời gian dt (giây)
 
@@ -29,6 +32,11 @@ class Robot:
         self.y += self.vy * dt
         self.theta += self.vtheta * dt
         self.theta %= 360  # giữ góc trong khoảng [0, 360)
+
+        px = (self.pose['x'] + 11.0) * self.scale
+        py = (7.0 - self.pose['y']) * self.scale
+        self.setPos(px, py)
+        self.setRotation(self.pose['theta'])
 
     def set_pose(self, x: float, y: float, theta: float):
         """Gán lại trạng thái vị trí và góc quay"""
@@ -53,3 +61,14 @@ class Robot:
     def __repr__(self):
         return (f"Robot(x={self.x:.2f}, y={self.y:.2f}, θ={self.theta:.1f}°, "
                 f"vx={self.vx:.2f}, vy={self.vy:.2f}, vθ={self.vtheta:.2f})")
+    
+    '''
+    
+    def update_position(self):
+        if not self.active:
+            return
+        px = (self.pose['x'] + 11.0) * self.scale
+        py = (7.0 - self.pose['y']) * self.scale
+        self.setPos(px, py)
+        self.setRotation(self.pose['theta'])
+    '''

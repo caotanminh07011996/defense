@@ -46,6 +46,7 @@ class Team:
         group.team = self.team_id
         group.robot_id = robot_id
         group.has_ball = False
+        #group.active = True
 
         return group
 
@@ -61,6 +62,7 @@ class Team:
                 theta = 0 if self.team_id == 1 else 180
 
                 robot = self.create_robot_graphic(x, y, i, theta)
+                robot.active = True
                 self.robots.append(robot)
                 self.scene.addItem(robot)
                 if on_created:
@@ -69,6 +71,7 @@ class Team:
             # Sinh theo vị trí chỉ định
             for i, (x, y, theta) in enumerate(positions):
                 robot = self.create_robot_graphic(x, y, i, theta)
+                robot.active = True
                 self.robots.append(robot)
                 self.scene.addItem(robot)
                 if on_created:

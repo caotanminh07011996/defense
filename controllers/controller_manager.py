@@ -1,28 +1,25 @@
-import pygame
+# controllers/controller_manager.py
 
-class ControllerManager:
+from controllers.xbox_controller import assign_xbox_controllers
+from strategies.defense.random_defense import RandomDefenseStrategy
+from strategies.attack.random_attack import RandomAttackStrategy
 
-    @staticmethod
-    def setup_control(team, mode, strategy):
-        controllers = []
-        auto_robots = []
+def ControllerManager(team, mode, strategy_name, side=None, field=None):
+    controllers = []
+    auto_robots = []
 
-        if mode == 'Xbox':
-            pygame.joystick.quit()
-            pygame.joystick.init()
-            num_joysticks = pygame.joystick.get_count()
+    if mode == "Xbox":
+        controllers, auto_robots = assign_xbox_controllers(team)
+    else:
+        auto_robots = team.robots
 
-            print(f"Found {num_joysticks} joysticks for team")
+    strategy = None
+    if strategy_name == "Random":
+        if side == 'defense':
+            from strategies.defense.random_defense import RandomDefenseStrategy
+            strategy = RandomDefenseStrategy(team, field)
+        elif side == 'attack':
+            from strategies.attack.random_attack import RandomAttackStrategy
+            strategy = RandomAttackStrategy(team, field)
 
-            for i, robot in enumerate(team.robots):
-                if i < num_joysticks:
-                    js = pygame.joystick.Joystick(i)
-                    js.init()
-                    controllers.append((robot, js))
-                else:
-                    auto_robots.append(robot)
-
-        elif mode == 'Automation':
-            auto_robots = team.robots[:]
-
-        return controllers, auto_robots, strategy
+    return controllers, auto_robots, strategy
